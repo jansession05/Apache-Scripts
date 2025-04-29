@@ -268,14 +268,6 @@ scrape_configs:
     echo -e "${AMARILLO}Descargando dashboard de Node Exporter para Grafana...${NC}"
     curl -s https://grafana.com/api/dashboards/1860/revisions/27/download > "$MONITORING_DIR/grafana/dashboards/node-exporter.json"
     
-    # Descargar el dashboard de Apache para Grafana
-    echo -e "${AMARILLO}Descargando dashboard de Apache para Grafana...${NC}"
-    curl -s https://grafana.com/api/dashboards/3894/revisions/2/download > "$MONITORING_DIR/grafana/dashboards/apache.json"
-    
-    # Ajustar el dashboard de Apache para usar nuestra fuente de datos
-    sed -i 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache.json"
-    sed -i 's/"datasource": "${DS_LOCALHOST}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache.json"
-    
     # Iniciar Node Exporter
     docker run -d \
         --name node-exporter \
@@ -382,6 +374,7 @@ scrape_configs:
     echo -e "${AMARILLO}Descargando dashboard específico para Apache Exporter...${NC}"
     curl -s https://grafana.com/api/dashboards/3894/revisions/2/download > "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
     sed -i 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
+    sed -i 's/"datasource": "${DS_LOCALHOST}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
     
     echo -e "${VERDE}Grafana y Prometheus instalados y configurados correctamente.${NC}"
     echo -e "${VERDE}Puedes acceder a Grafana en http://localhost:3000 (usuario: admin, contraseña: admin)${NC}"
