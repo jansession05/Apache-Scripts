@@ -25,7 +25,19 @@ comprobar_docker() {
     
     if ! docker info &> /dev/null; then
         error_exit "El servicio Docker no está en ejecución o no tienes permisos suficientes."
-    }
+    fi
+}
+# Función para comprobar si el usuario tiene permisos de administrador
+comprobar_permisos_admin() {
+    if [ "$(id -u)" -ne 0 ]; then
+        error_exit "Este script debe ejecutarse con permisos de administrador (root)."
+    fi
+}
+# Función para comprobar si el usuario tiene permisos de administrador
+comprobar_permisos_admin() {
+    if [ "$(id -u)" -ne 0 ]; then
+        error_exit "Este script debe ejecutarse con permisos de administrador (root)."
+    fi
 }
 
 # Función para crear la red de Docker
