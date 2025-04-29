@@ -172,6 +172,8 @@ instalar_monitoreo() {
     # Crear directorios para la configuración
     MONITORING_DIR="./monitoring"
     mkdir -p "$MONITORING_DIR/prometheus"
+    mkdir -p "$MONITORING_DIR/grafana/provisioning/datasources"
+    mkdir -p "$MONITORING_DIR/grafana/provisioning/dashboards"
     
     # Crear configuración de Prometheus
     echo "global:
@@ -197,6 +199,49 @@ scrape_configs:
     metrics_path: /server-status
     params:
       format: [prometheus]" > "$MONITORING_DIR/prometheus/prometheus.yml"
+    
+    # Crear configuración de datasource para Grafana
+    echo '{
+    "apiVersion": 1,
+    "datasources": [
+        {
+            "access": "proxy",
+            "editable": true,
+            "name": "Prometheus",
+            "orgId": 1,
+            "type": "prometheus",
+            "url": "http://10.30.8.94:9090",
+            "version": 1
+        }
+    ]
+}' > "$MONITORING_DIR/grafana/provisioning/datasources/prometheus.yml"
+
+    # Crear configuración para el dashboard de Node Exporter
+    echo '{
+    "apiVersion": 1,
+    "providers": [
+        {
+            "name": "Default",
+            "orgId": 1,
+            "folder": "",
+            "type": "file",
+            "disableDeletion": false,
+            "updateIntervalSeconds": 10,
+            "allowUiUpdates": true,
+            "options": {
+                "path": "/var/lib/grafana/dashboards",
+                "foldersFromFilesStructure": true
+            }
+        }
+    ]
+}' > "$MONITORING_DIR/grafana/provisioning/dashboards/default.yml"
+
+    # Crear directorio para los dashboards
+    mkdir -p "$MONITORING_DIR/grafana/dashboards"
+    
+    # Descargar el dashboard de Node Exporter
+    echo -e "${AMARILLO}Descargando dashboard de Node Exporter para Grafana...${NC}"
+    curl -s https://grafana.com/api/dashboards/1860/revisions/27/download > "$MONITORING_DIR/grafana/dashboards/node-exporter.json"
     
     # Iniciar Node Exporter
     docker run -d \
@@ -241,22 +286,26 @@ scrape_configs:
         --label "com.example.description=Prometheus para recolección de métricas" \
         prom/prometheus:latest || error_exit "No se pudo iniciar Prometheus"
     
-    # Iniciar Grafana
+    # Iniciar Grafana con provisioning
     docker run -d \
         --name grafana \
         --hostname grafana \
         --network apache-net \
         --restart unless-stopped \
         -p 3000:3000 \
+        -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning" \
+        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards" \
         -e "GF_SECURITY_ADMIN_USER=admin" \
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
         -e "GF_USERS_ALLOW_SIGN_UP=false" \
+        -e "GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource" \
         --label "com.example.description=Grafana para visualización de métricas" \
         grafana/grafana:latest || error_exit "No se pudo iniciar Grafana"
     
     echo -e "${VERDE}Grafana y Prometheus instalados y configurados correctamente.${NC}"
     echo -e "${VERDE}Puedes acceder a Grafana en http://localhost:3000 (usuario: admin, contraseña: admin)${NC}"
-    echo -e "${VERDE}Puedes acceder a Prometheus en http://localhost:9090${NC}"
+    echo -e "${VERDE}Prometheus configurado con la dirección 10.30.8.94:9090${NC}"
+    echo -e "${VERDE}Dashboard de Node Exporter instalado automáticamente${NC}"
 }
 
 # Función para mostrar el estado de los contenedores
