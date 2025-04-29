@@ -106,6 +106,16 @@ iniciar_apache() {
         # Crear configuración global de ServerName
         echo "ServerName localhost" > "$APACHE_CONFIG_DIR/conf-available/servername.conf"
         ln -sf "../conf-available/servername.conf" "$APACHE_CONFIG_DIR/conf-enabled/servername.conf"
+        
+        # Crear configuración para exponer métricas de Apache
+        echo "<Location \"/server-status\">
+    SetHandler server-status
+    Require all granted
+</Location>
+
+LoadModule status_module modules/mod_status.so
+ExtendedStatus On" > "$APACHE_CONFIG_DIR/conf-available/server-status.conf"
+        ln -sf "../conf-available/server-status.conf" "$APACHE_CONFIG_DIR/conf-enabled/server-status.conf"
     fi
     
     # Crear directorio para el contenido web si no existe
@@ -139,11 +149,14 @@ iniciar_apache() {
         -v apache-logs:/var/log/apache2 \
         -e TZ=Europe/Madrid \
         -e APACHE_SERVER_NAME=localhost \
-        --label "com.example.description=Servidor Apache para desarrollo web" \
+        --label "com.example.description=Servidor Apache para la actividad final de sistemas" \
         --label "com.example.department=IT" \
         --label "com.example.label-with-empty-value" \
         httpd:2.4-alpine || error_exit "No se pudo iniciar el contenedor Apache"
     
+    # Install Apache exporter in the container
+    docker exec apache-server apk add --no-cache curl
+    docker exec apache-server apk add --no-cache apache2-utils
     echo -e "${VERDE}Contenedor Apache iniciado correctamente.${NC}"
     echo -e "${VERDE}Puedes acceder al servidor web en http://localhost${NC}"
 }
@@ -202,11 +215,11 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 
   - job_name: 'apache'
-    static_configs:
-      - targets: ['apache-server:80']
     metrics_path: /server-status
     params:
-      format: [prometheus]" > "$MONITORING_DIR/prometheus/prometheus.yml"
+      format: [prometheus]
+    static_configs:
+      - targets: ['apache-server:80']" > "$MONITORING_DIR/prometheus/prometheus.yml"
     
     # Crear configuración de datasource para Grafana
     echo '{
@@ -247,9 +260,17 @@ scrape_configs:
     # Crear directorio para los dashboards
     mkdir -p "$MONITORING_DIR/grafana/dashboards"
     
-    # Descargar el dashboard de Node Exporter
+    # Descargar el dashboard de Node Exporter para Grafana
     echo -e "${AMARILLO}Descargando dashboard de Node Exporter para Grafana...${NC}"
     curl -s https://grafana.com/api/dashboards/1860/revisions/27/download > "$MONITORING_DIR/grafana/dashboards/node-exporter.json"
+    
+    # Descargar el dashboard de Apache para Grafana
+    echo -e "${AMARILLO}Descargando dashboard de Apache para Grafana...${NC}"
+    curl -s https://grafana.com/api/dashboards/3894/revisions/2/download > "$MONITORING_DIR/grafana/dashboards/apache.json"
+    
+    # Ajustar el dashboard de Apache para usar nuestra fuente de datos
+    sed -i 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache.json"
+    sed -i 's/"datasource": "${DS_LOCALHOST}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache.json"
     
     # Iniciar Node Exporter
     docker run -d \
@@ -313,7 +334,7 @@ scrape_configs:
     echo -e "${VERDE}Grafana y Prometheus instalados y configurados correctamente.${NC}"
     echo -e "${VERDE}Puedes acceder a Grafana en http://localhost:3000 (usuario: admin, contraseña: admin)${NC}"
     echo -e "${VERDE}Prometheus configurado con la dirección 10.30.8.94:9090${NC}"
-    echo -e "${VERDE}Dashboard de Node Exporter instalado automáticamente${NC}"
+    echo -e "${VERDE}Dashboard de Node Exporter y Apache instalados automáticamente${NC}"
 }
 
 # Función para mostrar el estado de los contenedores
