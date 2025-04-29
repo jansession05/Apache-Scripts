@@ -321,48 +321,58 @@ mostrar_estado() {
 }
 
 # Función para crear un nuevo sitio web
-crear_sitio_web() {
+crear_sitio() {
     if [ -z "$1" ]; then
-        error_exit "Por favor, proporciona un nombre de dominio para el sitio web."
+        error_exit "Debes especificar un nombre para el sitio web"
     fi
     
-    DOMINIO=$1
+    SITIO=$1
+    echo -e "${AMARILLO}Creando un nuevo sitio web para $SITIO...${NC}"
     
-    echo -e "${AMARILLO}Creando un nuevo sitio web para $DOMINIO...${NC}"
+    # Crear directorio para el sitio web
+    mkdir -p "./www-data/$SITIO"
     
-    # Crear directorios
-    mkdir -p "$WEB_CONTENT_DIR/$DOMINIO"
+    # Crear página de inicio básica
+    echo "<html>
+<head>
+    <title>Bienvenido a $SITIO</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        h1 { color: #333; }
+    </style>
+</head>
+<body>
+    <h1>Bienvenido a $SITIO</h1>
+    <p>Esta es la página de inicio de $SITIO.</p>
+    <p>Personaliza este contenido según tus necesidades.</p>
+</body>
+</html>" > "./www-data/$SITIO/index.html"
     
-    # Crear página de ejemplo
-    echo "<html><head><title>Bienvenido a $DOMINIO</title></head><body><h1>¡Éxito! El sitio web $DOMINIO está funcionando!</h1></body></html>" > "$WEB_CONTENT_DIR/$DOMINIO/index.html"
-    
-    # Crear archivo de configuración del sitio web
-    CONFIG_FILE="$APACHE_CONFIG_DIR/sites-available/$DOMINIO.conf"
-    
+    # Crear archivo de configuración de Apache
     echo "<VirtualHost *:80>
-    ServerAdmin webmaster@$DOMINIO
-    ServerName $DOMINIO
-    ServerAlias www.$DOMINIO
-    DocumentRoot /var/www/html/$DOMINIO
+    ServerName $SITIO
+    ServerAlias www.$SITIO
+    DocumentRoot /var/www/html/$SITIO
     
-    ErrorLog \${APACHE_LOG_DIR}/$DOMINIO-error.log
-    CustomLog \${APACHE_LOG_DIR}/$DOMINIO-access.log combined
-    
-    <Directory /var/www/html/$DOMINIO>
+    <Directory /var/www/html/$SITIO>
         Options Indexes FollowSymLinks
         AllowOverride All
         Require all granted
     </Directory>
-</VirtualHost>" > "$CONFIG_FILE"
     
-    # Activar el sitio web
-    ln -sf "../sites-available/$DOMINIO.conf" "$APACHE_CONFIG_DIR/sites-enabled/$DOMINIO.conf"
+    ErrorLog \${APACHE_LOG_DIR}/error-$SITIO.log
+    CustomLog \${APACHE_LOG_DIR}/access-$SITIO.log combined
+</VirtualHost>" > "./apache-config/sites-available/$SITIO.conf"
     
-    # Reiniciar Apache
-    docker exec apache-server apachectl -k graceful
+    # Crear enlace simbólico para activar el sitio
+    ln -sf "../sites-available/$SITIO.conf" "./apache-config/sites-enabled/$SITIO.conf"
     
-    echo -e "${VERDE}Sitio web $DOMINIO creado y activado correctamente.${NC}"
-    echo -e "${VERDE}Recuerda añadir una entrada en tu archivo hosts para $DOMINIO apuntando a 127.0.0.1${NC}"
+    # Reiniciar Apache para aplicar los cambios
+    docker exec apache-server apachectl configtest
+    docker exec apache-server apachectl restart
+    
+    echo -e "${VERDE}Sitio web $SITIO creado y activado correctamente.${NC}"
+    echo -e "${VERDE}Recuerda añadir una entrada en tu archivo hosts para $SITIO apuntando a 127.0.0.1${NC}"
 }
 
 # Función para eliminar un sitio web
@@ -433,7 +443,7 @@ main() {
             mostrar_estado
             ;;
         crear-sitio)
-            crear_sitio_web "$2"
+            crear_sitio "$2"
             ;;
         eliminar-sitio)
             eliminar_sitio_web "$2"
