@@ -88,6 +88,8 @@ iniciar_apache() {
     if [ ! -d "$APACHE_CONFIG_DIR" ]; then
         mkdir -p "$APACHE_CONFIG_DIR/sites-available"
         mkdir -p "$APACHE_CONFIG_DIR/sites-enabled"
+        mkdir -p "$APACHE_CONFIG_DIR/conf-available"
+        mkdir -p "$APACHE_CONFIG_DIR/conf-enabled"
         
         # Crear un archivo de configuración de ejemplo
         echo "<VirtualHost *:80>
@@ -100,6 +102,10 @@ iniciar_apache() {
         
         # Crear enlace simbólico
         ln -sf "../sites-available/000-default.conf" "$APACHE_CONFIG_DIR/sites-enabled/000-default.conf"
+        
+        # Crear configuración global de ServerName
+        echo "ServerName localhost" > "$APACHE_CONFIG_DIR/conf-available/servername.conf"
+        ln -sf "../conf-available/servername.conf" "$APACHE_CONFIG_DIR/conf-enabled/servername.conf"
     fi
     
     # Crear directorio para el contenido web si no existe
@@ -127,6 +133,8 @@ iniciar_apache() {
         --cpu-shares=1024 \
         -v "$PWD/$APACHE_CONFIG_DIR/sites-available:/etc/apache2/sites-available" \
         -v "$PWD/$APACHE_CONFIG_DIR/sites-enabled:/etc/apache2/sites-enabled" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf-available:/etc/apache2/conf-available" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf-enabled:/etc/apache2/conf-enabled" \
         -v "$PWD/$WEB_CONTENT_DIR:/var/www/html" \
         -v apache-logs:/var/log/apache2 \
         -e TZ=Europe/Madrid \
