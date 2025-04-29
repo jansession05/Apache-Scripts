@@ -335,10 +335,59 @@ scrape_configs:
         --label "com.example.description=Grafana para visualización de métricas" \
         grafana/grafana:latest || error_exit "No se pudo iniciar Grafana"
     
+    # Iniciar Apache Exporter
+    if docker ps -a --format '{{.Names}}' | grep -q "^apache-exporter$"; then
+        echo -e "${AMARILLO}El contenedor 'apache-exporter' ya existe. Deteniéndolo...${NC}"
+        docker stop apache-exporter
+        docker rm apache-exporter
+    fi
+    
+    echo -e "${AMARILLO}Iniciando Apache Exporter para monitorización de Apache...${NC}"
+    docker run -d \
+        --name apache-exporter \
+        --hostname apache-exporter \
+        --network apache-net \
+        --restart unless-stopped \
+        -p 9117:9117 \
+        --label "com.example.description=Apache Exporter para monitoreo de Apache" \
+        lusotycoon/apache-exporter \
+        --scrape_uri=http://apache-server/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
+    
+    # Actualizar la configuración de Prometheus para usar Apache Exporter
+    echo "global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: 'apache'
+    static_configs:
+      - targets: ['apache-exporter:9117']" > "$MONITORING_DIR/prometheus/prometheus.yml"
+    
+    # Reiniciar Prometheus para aplicar los cambios
+    docker restart prometheus
+    
+    # Descargar un dashboard específico para Apache Exporter
+    echo -e "${AMARILLO}Descargando dashboard específico para Apache Exporter...${NC}"
+    curl -s https://grafana.com/api/dashboards/3894/revisions/2/download > "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
+    sed -i 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
+    
     echo -e "${VERDE}Grafana y Prometheus instalados y configurados correctamente.${NC}"
     echo -e "${VERDE}Puedes acceder a Grafana en http://localhost:3000 (usuario: admin, contraseña: admin)${NC}"
     echo -e "${VERDE}Prometheus configurado con la dirección 10.30.8.94:9090${NC}"
     echo -e "${VERDE}Dashboard de Node Exporter y Apache instalados automáticamente${NC}"
+    echo -e "${VERDE}Apache Exporter instalado para monitorizar Apache correctamente${NC}"
 }
 
 # Función para mostrar el estado de los contenedores

@@ -16,8 +16,5 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 
   - job_name: 'apache'
-    metrics_path: /server-status
-    params:
-      format: [prometheus]
     static_configs:
-      - targets: ['apache-server:80']
+      - targets: ['apache-exporter:9117']
