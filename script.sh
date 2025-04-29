@@ -90,6 +90,7 @@ iniciar_apache() {
         mkdir -p "$APACHE_CONFIG_DIR/sites-enabled"
         mkdir -p "$APACHE_CONFIG_DIR/conf-available"
         mkdir -p "$APACHE_CONFIG_DIR/conf-enabled"
+        mkdir -p "$APACHE_CONFIG_DIR/conf"
         
         # Crear un archivo de configuración de ejemplo
         echo "<VirtualHost *:80>
@@ -116,10 +117,38 @@ iniciar_apache() {
     ExtendedStatus On
 </IfModule>" > "$APACHE_CONFIG_DIR/conf-available/server-status.conf"
         ln -sf "../conf-available/server-status.conf" "$APACHE_CONFIG_DIR/conf-enabled/server-status.conf"
+        
         # Ensure modules are loaded
         echo "# Load required modules
 LoadModule status_module modules/mod_status.so" > "$APACHE_CONFIG_DIR/conf-available/load-modules.conf"
         ln -sf "../conf-available/load-modules.conf" "$APACHE_CONFIG_DIR/conf-enabled/load-modules.conf"
+        
+        # Create custom httpd.conf with absolute minimal configuration
+        echo "# Minimal Apache Configuration
+ServerName localhost
+
+# Only essential modules
+LoadModule mpm_event_module modules/mod_mpm_event.so
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule mime_module modules/mod_mime.so
+
+# Basic server configuration
+DocumentRoot \"/var/www/html\"
+<Directory \"/var/www/html\">
+    Require all granted
+</Directory>
+
+# Simple logging
+ErrorLog /proc/self/fd/2
+CustomLog /proc/self/fd/1 common" > "$APACHE_CONFIG_DIR/conf/httpd.conf"
+        
+        # Create other configuration files
+        # Create the conf.d directory that's missing
+        mkdir -p "$APACHE_CONFIG_DIR/conf.d"
+        
+        # Create a placeholder file to avoid the "no matches" error
+        echo "# This is a placeholder file to avoid 'no matches' errors" > "$APACHE_CONFIG_DIR/conf.d/placeholder.conf"
     fi
     
     # Crear directorio para el contenido web si no existe
@@ -129,7 +158,7 @@ LoadModule status_module modules/mod_status.so" > "$APACHE_CONFIG_DIR/conf-avail
         echo "<html><body><h1>¡Bienvenido al servidor Apache en Docker!</h1></body></html>" > "$WEB_CONTENT_DIR/index.html"
     fi
     
-    # Iniciar el contenedor con las mejores prácticas
+    # Iniciar el contenedor con las mejores prácticas - REMOVED httpd.conf volume mount
     docker run -d \
         --name apache-server \
         --hostname apache-server \
@@ -145,10 +174,11 @@ LoadModule status_module modules/mod_status.so" > "$APACHE_CONFIG_DIR/conf-avail
         --memory="512m" \
         --memory-swap="1g" \
         --cpu-shares=1024 \
-        -v "$PWD/$APACHE_CONFIG_DIR/sites-available:/etc/apache2/sites-available" \
-        -v "$PWD/$APACHE_CONFIG_DIR/sites-enabled:/etc/apache2/sites-enabled" \
-        -v "$PWD/$APACHE_CONFIG_DIR/conf-available:/etc/apache2/conf-available" \
-        -v "$PWD/$APACHE_CONFIG_DIR/conf-enabled:/etc/apache2/conf-enabled" \
+        -v "$PWD/$APACHE_CONFIG_DIR/sites-available:/usr/local/apache2/sites-available" \
+        -v "$PWD/$APACHE_CONFIG_DIR/sites-enabled:/usr/local/apache2/sites-enabled" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf-available:/usr/local/apache2/conf-available" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf-enabled:/usr/local/apache2/conf-enabled" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf.d:/usr/local/apache2/conf.d" \
         -v "$PWD/$WEB_CONTENT_DIR:/var/www/html" \
         -v apache-logs:/var/log/apache2 \
         -e TZ=Europe/Madrid \
@@ -156,11 +186,11 @@ LoadModule status_module modules/mod_status.so" > "$APACHE_CONFIG_DIR/conf-avail
         --label "com.example.description=Servidor Apache para la actividad final de sistemas" \
         --label "com.example.department=IT" \
         --label "com.example.label-with-empty-value" \
-        httpd:2.4-alpine || error_exit "No se pudo iniciar el contenedor Apache"
+        httpd:2.4 || error_exit "No se pudo iniciar el contenedor Apache"
     
-    # Install Apache exporter in the container
-    docker exec apache-server apk add --no-cache curl
-    docker exec apache-server apk add --no-cache apache2-utils
+    # Install Apache exporter in the container - modify for standard Apache image
+    docker exec apache-server apt-get update
+    docker exec apache-server apt-get install -y curl
     echo -e "${VERDE}Contenedor Apache iniciado correctamente.${NC}"
     echo -e "${VERDE}Puedes acceder al servidor web en http://localhost${NC}"
 }
@@ -212,18 +242,18 @@ scrape_configs:
 
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['10.30.8.94:9100']
 
   - job_name: 'cadvisor'
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets: ['10.30.8.94:8080']
 
   - job_name: 'apache'
     metrics_path: /server-status
     params:
       format: [prometheus]
     static_configs:
-      - targets: ['apache-server:80']" > "$MONITORING_DIR/prometheus/prometheus.yml"
+      - targets: ['10.30.8.94:80']" > "$MONITORING_DIR/prometheus/prometheus.yml"
     
     # Crear configuración de datasource para Grafana
     echo '{
@@ -343,7 +373,7 @@ scrape_configs:
         -p 9117:9117 \
         --label "com.example.description=Apache Exporter para monitoreo de Apache" \
         lusotycoon/apache-exporter \
-        --scrape_uri=http://apache-server/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
+        --scrape_uri=http://10.30.8.94/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
     
     # Actualizar la configuración de Prometheus para usar Apache Exporter
     echo "global:
@@ -357,15 +387,15 @@ scrape_configs:
 
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['10.30.8.94:9100']
 
   - job_name: 'cadvisor'
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets: ['10.30.8.94:8080']
 
   - job_name: 'apache'
     static_configs:
-      - targets: ['apache-exporter:9117']" > "$MONITORING_DIR/prometheus/prometheus.yml"
+      - targets: ['10.30.8.94:9117']" > "$MONITORING_DIR/prometheus/prometheus.yml"
     
     # Reiniciar Prometheus para aplicar los cambios
     docker restart prometheus
@@ -377,7 +407,7 @@ scrape_configs:
     sed -i 's/"datasource": "${DS_LOCALHOST}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
     
     echo -e "${VERDE}Grafana y Prometheus instalados y configurados correctamente.${NC}"
-    echo -e "${VERDE}Puedes acceder a Grafana en http://localhost:3000 (usuario: admin, contraseña: admin)${NC}"
+    echo -e "${VERDE}Puedes acceder a Grafana en http://10.30.8.94:3000 (usuario: admin, contraseña: admin)${NC}"
     echo -e "${VERDE}Prometheus configurado con la dirección 10.30.8.94:9090${NC}"
     echo -e "${VERDE}Dashboard de Node Exporter y Apache instalados automáticamente${NC}"
     echo -e "${VERDE}Apache Exporter instalado para monitorizar Apache correctamente${NC}"
