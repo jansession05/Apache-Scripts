@@ -108,14 +108,18 @@ iniciar_apache() {
         ln -sf "../conf-available/servername.conf" "$APACHE_CONFIG_DIR/conf-enabled/servername.conf"
         
         # Crear configuración para exponer métricas de Apache
-        echo "<Location \"/server-status\">
-    SetHandler server-status
-    Require all granted
-</Location>
-
-LoadModule status_module modules/mod_status.so
-ExtendedStatus On" > "$APACHE_CONFIG_DIR/conf-available/server-status.conf"
+        echo "<IfModule mod_status.c>
+    <Location \"/server-status\">
+        SetHandler server-status
+        Require all granted
+    </Location>
+    ExtendedStatus On
+</IfModule>" > "$APACHE_CONFIG_DIR/conf-available/server-status.conf"
         ln -sf "../conf-available/server-status.conf" "$APACHE_CONFIG_DIR/conf-enabled/server-status.conf"
+        # Ensure modules are loaded
+        echo "# Load required modules
+LoadModule status_module modules/mod_status.so" > "$APACHE_CONFIG_DIR/conf-available/load-modules.conf"
+        ln -sf "../conf-available/load-modules.conf" "$APACHE_CONFIG_DIR/conf-enabled/load-modules.conf"
     fi
     
     # Crear directorio para el contenido web si no existe
