@@ -124,15 +124,27 @@ inicializar_configuracion_apache() {
         REWRITE_MOD_LOAD="$APACHE_CONFIG_DIR/mods-available/rewrite.load"
         if [ ! -f "$REWRITE_MOD_LOAD" ]; then
              echo "LoadModule rewrite_module modules/mod_rewrite.so" > "$REWRITE_MOD_LOAD"
+             # Optionally enable rewrite by default if needed:
+             # ln -sf "../mods-available/rewrite.load" "$APACHE_CONFIG_DIR/mods-enabled/rewrite.load"
         fi
         if [ ! -f "$STATUS_MOD_LOAD" ]; then
             echo "LoadModule status_module modules/mod_status.so" > "$STATUS_MOD_LOAD"
-            # NO LONGER creating link in mods-enabled: ln -sf "../mods-available/status.load" "$APACHE_CONFIG_DIR/mods-enabled/status.load"
         fi
+        # Ensure mod_status is enabled
+        if [ ! -L "$APACHE_CONFIG_DIR/mods-enabled/status.load" ]; then
+             echo -e "${AMARILLO}Habilitando mod_status...${NC}"
+             ln -sf "../mods-available/status.load" "$APACHE_CONFIG_DIR/mods-enabled/status.load"
+        fi
+
 
         echo -e "${VERDE}Archivos de configuración por defecto creados/verificados.${NC}"
     else
          echo -e "${VERDE}La estructura de configuración y archivos por defecto ya existen.${NC}"
+         # Also ensure mod_status is enabled even if other files exist
+         if [ ! -L "$APACHE_CONFIG_DIR/mods-enabled/status.load" ] && [ -f "$STATUS_MOD_LOAD" ]; then
+             echo -e "${AMARILLO}Habilitando mod_status...${NC}"
+             ln -sf "../mods-available/status.load" "$APACHE_CONFIG_DIR/mods-enabled/status.load"
+         fi
     fi
 
     # Crear directorio para el contenido web si no existe
@@ -154,23 +166,41 @@ iniciar_apache() {
     echo -e "${AMARILLO}Iniciando contenedor Apache 'apache-server'...${NC}"
     inicializar_configuracion_apache # Asegura que la estructura de config existe
 
+    # Get host IP for server-status access rule
+    HOST_IP=$(hostname -I | awk '{print $1}')
+    if [ -z "$HOST_IP" ]; then
+        echo -e "${ROJO}Advertencia: No se pudo obtener la IP del host para la regla de acceso a server-status. Se usará 127.0.0.1.${NC}"
+        HOST_IP="127.0.0.1" # Fallback, might not work as intended depending on network setup
+    fi
+
     # Crear un httpd.conf personalizado para incluir las configuraciones modulares
     HTTPD_CONF_CUSTOM="$APACHE_CONFIG_DIR/httpd-custom.conf"
-    echo "# httpd.conf personalizado para incluir configuraciones modulares
+    echo "# httpd.conf personalizado
 # Definir la variable del directorio de logs estándar
 Define APACHE_LOG_DIR /usr/local/apache2/logs
 
 # Carga la configuración por defecto de la imagen
 Include /usr/local/apache2/conf/httpd.conf
 
-# Incluir configuraciones habilitadas
-IncludeOptional conf-enabled/*.conf
+# --- Explicitly load mod_status and configure server-status ---
+LoadModule status_module modules/mod_status.so
+<IfModule mod_status.c>
+    <Location \"/server-status\">
+        SetHandler server-status
+        # Allow access from localhost (health check), exporter container, and host IP
+        Require local host apache-exporter ip $HOST_IP
+    </Location>
+    ExtendedStatus On
+</IfModule>
+# --- End explicit loading ---
+
+# Incluir configuraciones de sitios habilitados (para VirtualHosts)
 IncludeOptional sites-enabled/*.conf
 
-# Incluir cargas de módulos habilitados
-IncludeOptional mods-enabled/*.load
-# Incluir configuraciones de módulos habilitados (si existen)
-IncludeOptional mods-enabled/*.conf
+# We comment out the general includes for mods/conf enabled as we handle status explicitly
+# IncludeOptional conf-enabled/*.conf
+# IncludeOptional mods-enabled/*.load
+# IncludeOptional mods-enabled/*.conf
 " > "$HTTPD_CONF_CUSTOM"
 
     # Iniciar el contenedor con las mejores prácticas
@@ -238,12 +268,11 @@ instalar_monitoreo() {
     mkdir -p "$MONITORING_DIR/grafana/dashboards"
     mkdir -p "$MONITORING_DIR/grafana/data"
 
-    # Obtener la IP principal del host
+    # Obtener la IP principal del host (needed again here for the exporter URI)
     HOST_IP=$(hostname -I | awk '{print $1}')
     if [ -z "$HOST_IP" ]; then
-        echo -e "${ROJO}Advertencia: No se pudo obtener la IP del host automáticamente. Node Exporter podría no ser scrapeado correctamente por Prometheus desde el host.${NC}"
-        # Fallback a localhost si no se puede obtener la IP (puede que no funcione desde el contenedor)
-        HOST_IP="127.0.0.1"
+        echo -e "${ROJO}Advertencia: No se pudo obtener la IP del host automáticamente. Node Exporter y Apache Exporter (si usa IP) podrían no ser scrapeados correctamente.${NC}"
+        HOST_IP="127.0.0.1" # Fallback
     fi
     echo -e "${AZUL}IP del host detectada para Node Exporter: $HOST_IP${NC}"
 
@@ -361,7 +390,7 @@ scrape_configs:
         zcube/cadvisor:latest || error_exit "No se pudo iniciar cAdvisor"
 
     # Iniciar Apache Exporter
-    echo -e "${AMARILLO}Iniciando Apache Exporter...${NC}"
+    echo -e "${AMARILLO}Iniciando Apache Exporter (scrapeando via Host IP)...${NC}"
     docker run -d \
         --name apache-exporter \
         --hostname apache-exporter \
@@ -370,7 +399,7 @@ scrape_configs:
         -p 9117:9117 \
         --label "com.example.description=Apache Exporter para monitoreo de Apache" \
         lusotycoon/apache-exporter \
-        --scrape_uri=http://apache-server/server-status?auto || error_exit "No se pudo iniciar Apache Exporter" 
+        --scrape_uri=http://$HOST_IP:80/server-status?auto || error_exit "No se pudo iniciar Apache Exporter" # Changed URI
 
 
     # Iniciar Prometheus
@@ -416,7 +445,7 @@ scrape_configs:
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
         -e "GF_USERS_ALLOW_SIGN_UP=false" \
         -e "GF_INSTALL_PLUGINS=grafana-clock-panel" \
-        -e "GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/node-exporter-full.json" \ 
+        -e "GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/node-exporter-full.json" \
         --label "com.example.description=Grafana para visualización de métricas" \
         grafana/grafana:latest || error_exit "No se pudo iniciar Grafana"
 
