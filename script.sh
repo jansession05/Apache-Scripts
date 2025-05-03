@@ -65,46 +65,74 @@ crear_volumenes() {
 
 # Función para inicializar la estructura de configuración si no existe
 inicializar_configuracion_apache() {
-    if [ ! -d "$APACHE_CONFIG_DIR" ]; then
-        echo -e "${AMARILLO}Creando estructura de directorios de configuración de Apache en $APACHE_CONFIG_DIR...${NC}"
-        mkdir -p "$APACHE_CONFIG_DIR/sites-available"
-        mkdir -p "$APACHE_CONFIG_DIR/sites-enabled"
-        mkdir -p "$APACHE_CONFIG_DIR/mods-available"
-        mkdir -p "$APACHE_CONFIG_DIR/mods-enabled"
-        mkdir -p "$APACHE_CONFIG_DIR/conf-available"
-        mkdir -p "$APACHE_CONFIG_DIR/conf-enabled"
+    # Asegurarse de que todos los directorios necesarios existan
+    echo -e "${AMARILLO}Asegurando la estructura de directorios de configuración de Apache en $APACHE_CONFIG_DIR...${NC}"
+    mkdir -p "$APACHE_CONFIG_DIR/sites-available"
+    mkdir -p "$APACHE_CONFIG_DIR/sites-enabled"
+    mkdir -p "$APACHE_CONFIG_DIR/mods-available"
+    mkdir -p "$APACHE_CONFIG_DIR/mods-enabled"
+    mkdir -p "$APACHE_CONFIG_DIR/conf-available"
+    mkdir -p "$APACHE_CONFIG_DIR/conf-enabled"
 
-        # Crear configuración por defecto del sitio 000-default
-        echo "<VirtualHost *:80>
+    # Crear configuraciones por defecto solo si no existen archivos clave
+    DEFAULT_SITE_CONF="$APACHE_CONFIG_DIR/sites-available/000-default.conf"
+    SERVERNAME_CONF="$APACHE_CONFIG_DIR/conf-available/servername.conf"
+    STATUS_MOD_LOAD="$APACHE_CONFIG_DIR/mods-available/status.load"
+
+    if [ ! -f "$DEFAULT_SITE_CONF" ] || [ ! -f "$SERVERNAME_CONF" ] || [ ! -f "$STATUS_MOD_LOAD" ]; then
+        echo -e "${AMARILLO}Inicializando archivos de configuración por defecto...${NC}"
+
+        # Crear configuración por defecto del sitio 000-default si no existe
+        if [ ! -f "$DEFAULT_SITE_CONF" ]; then
+            echo "<VirtualHost *:80>
     ServerAdmin webmaster@localhost
-    DocumentRoot /usr/local/apache2/htdocs # Usar el DocumentRoot por defecto de la imagen httpd
+    DocumentRoot /usr/local/apache2/htdocs
+
+    # Grant access to the document root
+    <Directory /usr/local/apache2/htdocs>
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        Require all granted
+    </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/error.log
     CustomLog \${APACHE_LOG_DIR}/access.log combined
-</VirtualHost>" > "$APACHE_CONFIG_DIR/sites-available/000-default.conf"
-        ln -sf "../sites-available/000-default.conf" "$APACHE_CONFIG_DIR/sites-enabled/000-default.conf"
+</VirtualHost>" > "$DEFAULT_SITE_CONF"
+            ln -sf "../sites-available/000-default.conf" "$APACHE_CONFIG_DIR/sites-enabled/000-default.conf"
+        fi
 
-        # Crear configuración global de ServerName
-        echo "ServerName localhost" > "$APACHE_CONFIG_DIR/conf-available/servername.conf"
-        ln -sf "../conf-available/servername.conf" "$APACHE_CONFIG_DIR/conf-enabled/servername.conf"
+        # Crear configuración global de ServerName si no existe
+        if [ ! -f "$SERVERNAME_CONF" ]; then
+            echo "ServerName localhost" > "$SERVERNAME_CONF"
+            ln -sf "../conf-available/servername.conf" "$APACHE_CONFIG_DIR/conf-enabled/servername.conf"
+        fi
 
-        # Crear configuración para exponer métricas de Apache (mod_status)
-        echo "<IfModule mod_status.c>
+        # Crear configuración para exponer métricas de Apache (mod_status) si no existe
+        STATUS_CONF="$APACHE_CONFIG_DIR/conf-available/server-status.conf"
+        if [ ! -f "$STATUS_CONF" ]; then
+            echo "<IfModule mod_status.c>
     <Location \"/server-status\">
         SetHandler server-status
-        Require all granted # O cambia a 'Require local' o IP específica por seguridad
+        Require all granted
     </Location>
     ExtendedStatus On
-</IfModule>" > "$APACHE_CONFIG_DIR/conf-available/server-status.conf"
-        ln -sf "../conf-available/server-status.conf" "$APACHE_CONFIG_DIR/conf-enabled/server-status.conf"
+</IfModule>" > "$STATUS_CONF"
+            ln -sf "../conf-available/server-status.conf" "$APACHE_CONFIG_DIR/conf-enabled/server-status.conf"
+        fi
 
-        # Crear archivos .load para módulos comunes (ejemplo: rewrite)
-        echo "LoadModule rewrite_module modules/mod_rewrite.so" > "$APACHE_CONFIG_DIR/mods-available/rewrite.load"
-        echo "LoadModule status_module modules/mod_status.so" > "$APACHE_CONFIG_DIR/mods-available/status.load"
-        # Activar mod_status por defecto para la monitorización
-        ln -sf "../mods-available/status.load" "$APACHE_CONFIG_DIR/mods-enabled/status.load"
+        # Crear archivos .load para módulos comunes si no existen
+        REWRITE_MOD_LOAD="$APACHE_CONFIG_DIR/mods-available/rewrite.load"
+        if [ ! -f "$REWRITE_MOD_LOAD" ]; then
+             echo "LoadModule rewrite_module modules/mod_rewrite.so" > "$REWRITE_MOD_LOAD"
+        fi
+        if [ ! -f "$STATUS_MOD_LOAD" ]; then
+            echo "LoadModule status_module modules/mod_status.so" > "$STATUS_MOD_LOAD"
+            # NO LONGER creating link in mods-enabled: ln -sf "../mods-available/status.load" "$APACHE_CONFIG_DIR/mods-enabled/status.load"
+        fi
 
-        echo -e "${VERDE}Estructura de configuración inicializada.${NC}"
+        echo -e "${VERDE}Archivos de configuración por defecto creados/verificados.${NC}"
+    else
+         echo -e "${VERDE}La estructura de configuración y archivos por defecto ya existen.${NC}"
     fi
 
     # Crear directorio para el contenido web si no existe
@@ -129,6 +157,9 @@ iniciar_apache() {
     # Crear un httpd.conf personalizado para incluir las configuraciones modulares
     HTTPD_CONF_CUSTOM="$APACHE_CONFIG_DIR/httpd-custom.conf"
     echo "# httpd.conf personalizado para incluir configuraciones modulares
+# Definir la variable del directorio de logs estándar
+Define APACHE_LOG_DIR /usr/local/apache2/logs
+
 # Carga la configuración por defecto de la imagen
 Include /usr/local/apache2/conf/httpd.conf
 
@@ -158,14 +189,14 @@ IncludeOptional mods-enabled/*.conf
         --memory="512m" \
         --memory-swap="1g" \
         --cpu-shares=1024 \
-        -v "$PWD/$HTTPD_CONF_CUSTOM:/usr/local/apache2/conf/httpd-custom.conf:ro" \
-        -v "$PWD/$APACHE_CONFIG_DIR/sites-available:/usr/local/apache2/sites-available:ro" \
-        -v "$PWD/$APACHE_CONFIG_DIR/sites-enabled:/usr/local/apache2/sites-enabled" \
-        -v "$PWD/$APACHE_CONFIG_DIR/mods-available:/usr/local/apache2/mods-available:ro" \
-        -v "$PWD/$APACHE_CONFIG_DIR/mods-enabled:/usr/local/apache2/mods-enabled" \
-        -v "$PWD/$APACHE_CONFIG_DIR/conf-available:/usr/local/apache2/conf-available:ro" \
-        -v "$PWD/$APACHE_CONFIG_DIR/conf-enabled:/usr/local/apache2/conf-enabled" \
-        -v "$PWD/$WEB_CONTENT_DIR:/usr/local/apache2/htdocs" \
+        -v "$PWD/$HTTPD_CONF_CUSTOM:/usr/local/apache2/conf/httpd-custom.conf:ro,z" \
+        -v "$PWD/$APACHE_CONFIG_DIR/sites-available:/usr/local/apache2/sites-available:ro,z" \
+        -v "$PWD/$APACHE_CONFIG_DIR/sites-enabled:/usr/local/apache2/sites-enabled:z" \
+        -v "$PWD/$APACHE_CONFIG_DIR/mods-available:/usr/local/apache2/mods-available:ro,z" \
+        -v "$PWD/$APACHE_CONFIG_DIR/mods-enabled:/usr/local/apache2/mods-enabled:z" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf-available:/usr/local/apache2/conf-available:ro,z" \
+        -v "$PWD/$APACHE_CONFIG_DIR/conf-enabled:/usr/local/apache2/conf-enabled:z" \
+        -v "$PWD/$WEB_CONTENT_DIR:/usr/local/apache2/htdocs:z" \
         -v apache-logs:/usr/local/apache2/logs \
         -e TZ=Europe/Madrid \
         --label "com.example.description=Servidor Apache gestionado por script" \
@@ -308,12 +339,10 @@ scrape_configs:
         --volume=/:/rootfs:ro \
         --volume=/var/run:/var/run:rw \
         --volume=/sys:/sys:ro \
-        --volume=/var/lib/docker/:/var/lib/docker:ro \
-        --volume=/dev/disk/:/dev/disk:ro \
         --privileged \
         --device=/dev/kmsg \
         --label "com.example.description=cAdvisor para monitoreo de contenedores" \
-        gcr.io/cadvisor/cadvisor:latest || error_exit "No se pudo iniciar cAdvisor"
+        zcube/cadvisor:latest || error_exit "No se pudo iniciar cAdvisor"
 
     # Iniciar Apache Exporter
     echo -e "${AMARILLO}Iniciando Apache Exporter...${NC}"
@@ -325,7 +354,7 @@ scrape_configs:
         -p 9117:9117 \
         --label "com.example.description=Apache Exporter para monitoreo de Apache" \
         lusotycoon/apache-exporter \
-        --scrape_uri=http://apache-server/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
+        --scrape_uri=http://localhost/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
         # Apunta al contenedor apache-server dentro de la red docker
 
     # Iniciar Prometheus

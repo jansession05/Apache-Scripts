@@ -59,7 +59,7 @@
             "rgba(237, 129, 40, 0.89)",
             "rgba(50, 172, 45, 0.97)"
           ],
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 1,
           "format": "s",
           "gauge": {
@@ -84,7 +84,7 @@
             }
           ],
           "maxDataPoints": 100,
-          "nullPointMode": "null",
+          "nullPointMode": "connected",
           "nullText": null,
           "postfix": "s",
           "postfixFontSize": "50%",
@@ -109,9 +109,9 @@
             {
               "expr": "apache_uptime_seconds_total{instance=~\"$host:$port\"}",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "refId": "A",
-              "step": 1800
+              "step": 240
             }
           ],
           "thresholds": "",
@@ -132,7 +132,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 0,
           "fill": 7,
           "id": 5,
@@ -173,18 +173,18 @@
             {
               "expr": "count(apache_up{instance=~\"$host:$port\"} == 1)",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "Apache Up",
               "refId": "A",
-              "step": 120
+              "step": 240
             },
             {
-              "expr": "count(apache_up{instance=~\"$host:$port\"} == 0)",
+              "expr": "scalar(count(apache_up{instance=~\"$host:$port\"} == 0))",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "Apache Down",
               "refId": "B",
-              "step": 120
+              "step": 240
             }
           ],
           "thresholds": [],
@@ -240,7 +240,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 2,
           "fill": 1,
           "id": 3,
@@ -271,7 +271,7 @@
             {
               "expr": "rate(apache_sent_kilobytes_total{instance=~\"$host:$port\"}[5m])",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "Kilobytes Sent",
               "refId": "A",
               "step": 240
@@ -318,7 +318,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 2,
           "fill": 1,
           "id": 1,
@@ -349,7 +349,7 @@
             {
               "expr": "rate(apache_accesses_total{instance=~\"$host:$port\"}[5m])",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "Accesses",
               "refId": "A",
               "step": 240
@@ -408,7 +408,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 2,
           "fill": 1,
           "id": 2,
@@ -434,16 +434,16 @@
           "seriesOverrides": [],
           "spaceLength": 10,
           "span": 12,
-          "stack": false,
+          "stack": true,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(apache_scoreboard{instance=~\"$host:$port\"}[5m])",
+              "expr": "apache_scoreboard{instance=~\"$host:$port\"}",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "{{ state }}",
               "refId": "A",
-              "step": 120
+              "step": 240
             }
           ],
           "thresholds": [],
@@ -499,7 +499,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 2,
           "fill": 1,
           "id": 7,
@@ -524,13 +524,13 @@
           "seriesOverrides": [],
           "spaceLength": 10,
           "span": 6,
-          "stack": false,
+          "stack": true,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(apache_workers{instance=~\"$host:$port\"}[5m])",
+              "expr": "apache_workers{instance=~\"$host:$port\"}\n",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "{{ state }}",
               "refId": "A",
               "step": 240
@@ -577,7 +577,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_LOCALHOST}",
           "decimals": 2,
           "fill": 1,
           "id": 4,
@@ -606,9 +606,9 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(apache_cpuload{instance=~\"$host:$port\"}[5m])",
+              "expr": "apache_cpuload{instance=~\"$host:$port\"}",
               "format": "time_series",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "Load",
               "refId": "A",
               "step": 240
@@ -667,7 +667,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "Prometheus",
+        "datasource": "${DS_LOCALHOST}",
         "hide": 0,
         "includeAll": false,
         "label": "host",
@@ -687,7 +687,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "Prometheus",
+        "datasource": "${DS_LOCALHOST}",
         "hide": 2,
         "includeAll": false,
         "label": null,
@@ -737,5 +737,6 @@
   },
   "timezone": "",
   "title": "Apache",
-  "version": 10
+  "version": 13,
+  "description": "Apache Prometheus Dashboard"
 }

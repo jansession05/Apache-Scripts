@@ -7,8 +7,9 @@
             "name": "Prometheus",
             "orgId": 1,
             "type": "prometheus",
-            "url": "http://10.30.8.94:9090",
-            "version": 1
+            "url": "http://prometheus:9090",
+            "version": 1,
+            "isDefault": true
         }
     ]
 }
