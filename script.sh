@@ -238,7 +238,17 @@ instalar_monitoreo() {
     mkdir -p "$MONITORING_DIR/grafana/dashboards"
     mkdir -p "$MONITORING_DIR/grafana/data"
 
-    # Crear configuración de Prometheus (usando nombres de contenedor)
+    # Obtener la IP principal del host
+    HOST_IP=$(hostname -I | awk '{print $1}')
+    if [ -z "$HOST_IP" ]; then
+        echo -e "${ROJO}Advertencia: No se pudo obtener la IP del host automáticamente. Node Exporter podría no ser scrapeado correctamente por Prometheus desde el host.${NC}"
+        # Fallback a localhost si no se puede obtener la IP (puede que no funcione desde el contenedor)
+        HOST_IP="127.0.0.1"
+    fi
+    echo -e "${AZUL}IP del host detectada para Node Exporter: $HOST_IP${NC}"
+
+
+    # Crear configuración de Prometheus (usando nombres de contenedor y IP del host)
     echo "global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -248,9 +258,9 @@ scrape_configs:
     static_configs:
       - targets: ['prometheus:9090'] # Apunta a sí mismo
 
-  - job_name: 'node-exporter'
+  - job_name: 'node-exporter' # Apunta a la IP del HOST donde corre el exporter
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['$HOST_IP:9100']
 
   - job_name: 'cadvisor'
     static_configs:
@@ -375,22 +385,32 @@ scrape_configs:
         --label "com.example.description=Prometheus para recolección de métricas" \
         prom/prometheus:latest || error_exit "No se pudo iniciar Prometheus"
 
-    # Iniciar Grafana con provisioning
+    # Preparar directorio de datos de Grafana y Iniciar Grafana con provisioning
+    echo -e "${AMARILLO}Preparando directorio de datos de Grafana...${NC}"
+    # Ensure the directory exists
+    mkdir -p "$PWD/$MONITORING_DIR/grafana/data"
+    # Set ownership to the current host user
+    sudo chown -R $(id -u):$(id -g) "$PWD/$MONITORING_DIR/grafana/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar el propietario del directorio de datos de Grafana. Puede requerir sudo.${NC}"
+    # Clean the directory contents
+    echo -e "${AMARILLO}Limpiando directorio de datos de Grafana ($PWD/$MONITORING_DIR/grafana/data)...${NC}"
+    sudo rm -rf "$PWD/$MONITORING_DIR/grafana/data/"* || echo -e "${ROJO}Advertencia: No se pudo limpiar el directorio de datos de Grafana. Puede requerir sudo.${NC}"
+
+
     echo -e "${AMARILLO}Iniciando Grafana...${NC}"
     docker run -d \
         --name grafana \
         --hostname grafana \
         --network apache-net \
         --restart unless-stopped \
-        --user root:root \
+        --user "$(id -u):$(id -g)" \
         -p 3000:3000 \
-        -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:ro,z" \
-        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:rw,z" \
+        -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:rw" \
+        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:rw" \
         -v "$PWD/$MONITORING_DIR/grafana/data:/var/lib/grafana:z" \
         -e "GF_SECURITY_ADMIN_USER=admin" \
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
         -e "GF_USERS_ALLOW_SIGN_UP=false" \
-        -e "GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource" \
+        -e "GF_INSTALL_PLUGINS=grafana-clock-panel" \
         --label "com.example.description=Grafana para visualización de métricas" \
         grafana/grafana:latest || error_exit "No se pudo iniciar Grafana"
 
