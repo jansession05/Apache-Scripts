@@ -416,6 +416,7 @@ scrape_configs:
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
         -e "GF_USERS_ALLOW_SIGN_UP=false" \
         -e "GF_INSTALL_PLUGINS=grafana-clock-panel" \
+        -e "GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/node-exporter-full.json" \ 
         --label "com.example.description=Grafana para visualización de métricas" \
         grafana/grafana:latest || error_exit "No se pudo iniciar Grafana"
 
