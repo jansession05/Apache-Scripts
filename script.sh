@@ -74,7 +74,7 @@ inicializar_configuracion_apache() {
     mkdir -p "$APACHE_CONFIG_DIR/conf-available"
     mkdir -p "$APACHE_CONFIG_DIR/conf-enabled"
 
-    # Crear configuraciones por defecto solo si no existen archivos clave
+    # Crear configuración por defecto solo si no existen archivos clave
     DEFAULT_SITE_CONF="$APACHE_CONFIG_DIR/sites-available/000-default.conf"
     SERVERNAME_CONF="$APACHE_CONFIG_DIR/conf-available/servername.conf"
     STATUS_MOD_LOAD="$APACHE_CONFIG_DIR/mods-available/status.load"
@@ -354,8 +354,8 @@ scrape_configs:
         -p 9117:9117 \
         --label "com.example.description=Apache Exporter para monitoreo de Apache" \
         lusotycoon/apache-exporter \
-        --scrape_uri=http://localhost/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
-        # Apunta al contenedor apache-server dentro de la red docker
+        --scrape_uri=http://apache-server/server-status?auto || error_exit "No se pudo iniciar Apache Exporter" 
+
 
     # Iniciar Prometheus
     echo -e "${AMARILLO}Iniciando Prometheus...${NC}"
@@ -365,7 +365,8 @@ scrape_configs:
         --network apache-net \
         --restart unless-stopped \
         -p 9090:9090 \
-        -v "$PWD/$MONITORING_DIR/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+        --user "$(id -u):$(id -g)" \
+        -v "$PWD/$MONITORING_DIR/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z" \
         --label "com.example.description=Prometheus para recolección de métricas" \
         prom/prometheus:latest || error_exit "No se pudo iniciar Prometheus"
 
@@ -377,8 +378,9 @@ scrape_configs:
         --network apache-net \
         --restart unless-stopped \
         -p 3000:3000 \
-        -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:ro" \
-        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:ro" \
+        --user "$(id -u):$(id -g)" \
+        -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:ro,z" \
+        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:ro,z" \
         -e "GF_SECURITY_ADMIN_USER=admin" \
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
         -e "GF_USERS_ALLOW_SIGN_UP=false" \
