@@ -359,6 +359,10 @@ scrape_configs:
 
 
     # Iniciar Prometheus
+    echo -e "${AMARILLO}Preparando directorio de datos de Prometheus...${NC}"
+    sudo chown -R 65534:65534 "$PWD/$MONITORING_DIR/prometheus/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar el propietario del directorio de datos de Prometheus. Puede requerir sudo.${NC}"
+    sudo rm -rf "$PWD/$MONITORING_DIR/prometheus/data/"* || echo -e "${ROJO}Advertencia: No se pudo limpiar el directorio de datos de Prometheus. Puede requerir sudo.${NC}"
+
     echo -e "${AMARILLO}Iniciando Prometheus...${NC}"
     docker run -d \
         --name prometheus \
