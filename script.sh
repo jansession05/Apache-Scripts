@@ -231,11 +231,12 @@ instalar_monitoreo() {
         fi
     done
 
-    # Crear directorios para la configuración
-    mkdir -p "$MONITORING_DIR/prometheus"
+    # Crear directorios para la configuración y datos
+    mkdir -p "$MONITORING_DIR/prometheus/data"
     mkdir -p "$MONITORING_DIR/grafana/provisioning/datasources"
     mkdir -p "$MONITORING_DIR/grafana/provisioning/dashboards"
     mkdir -p "$MONITORING_DIR/grafana/dashboards"
+    mkdir -p "$MONITORING_DIR/grafana/data"
 
     # Crear configuración de Prometheus (usando nombres de contenedor)
     echo "global:
@@ -365,8 +366,8 @@ scrape_configs:
         --network apache-net \
         --restart unless-stopped \
         -p 9090:9090 \
-        --user "$(id -u):$(id -g)" \
-        -v "$PWD/$MONITORING_DIR/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z" \
+        -v "$PWD/$MONITORING_DIR/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:rw"\
+        -v "$PWD/$MONITORING_DIR/prometheus/data:/prometheus:rw" \
         --label "com.example.description=Prometheus para recolección de métricas" \
         prom/prometheus:latest || error_exit "No se pudo iniciar Prometheus"
 
@@ -381,6 +382,7 @@ scrape_configs:
         --user "$(id -u):$(id -g)" \
         -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:ro,z" \
         -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:ro,z" \
+        -v "$PWD/$MONITORING_DIR/grafana/data:/var/lib/grafana:z" \
         -e "GF_SECURITY_ADMIN_USER=admin" \
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
         -e "GF_USERS_ALLOW_SIGN_UP=false" \
