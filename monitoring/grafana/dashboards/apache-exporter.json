@@ -1,7 +1,7 @@
 {
   "__inputs": [
     {
-      "name": "DS_LOCALHOST",
+      "name": "prometheus",
       "label": "localhost",
       "description": "",
       "type": "datasource",

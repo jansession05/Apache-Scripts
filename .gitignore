@@ -1,1 +1,2 @@
-monitoring/*
+monitoring/prometheus*
+monitoring/grafana/data*

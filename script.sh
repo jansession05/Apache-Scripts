@@ -402,7 +402,7 @@ scrape_configs:
         --hostname grafana \
         --network apache-net \
         --restart unless-stopped \
-        --user "$(id -u):$(id -g)" \
+        --user root:root \
         -p 3000:3000 \
         -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:rw" \
         -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:rw" \
