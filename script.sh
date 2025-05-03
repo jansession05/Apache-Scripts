@@ -278,7 +278,7 @@ scrape_configs:
         {
             "access": "proxy",
             "editable": true,
-            "name": "Prometheus",
+            "name": "DS_PROMETHEUS", # Changed name here
             "orgId": 1,
             "type": "prometheus",
             "url": "http://prometheus:9090",
@@ -317,9 +317,14 @@ scrape_configs:
     # Docker Monitoring Dashboard (cAdvisor)
     curl -s https://grafana.com/api/dashboards/193/revisions/latest/download -o "$MONITORING_DIR/grafana/dashboards/docker-cadvisor.json" || echo -e "${ROJO}Error descargando dashboard Docker/cAdvisor.${NC}"
 
-    # Ajustar datasource en dashboards descargados (si es necesario, aunque los IDs suelen funcionar)
-    # sed -i 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/apache-exporter.json"
-    # sed -i 's/"datasource": null/"datasource": "Prometheus"/g' "$MONITORING_DIR/grafana/dashboards/*.json" # Ejemplo más genérico
+    # Ajustar datasource en dashboards descargados
+    # Replace common default datasource names/variables with "DS_PROMETHEUS"
+    echo -e "${AMARILLO}Ajustando datasource en dashboards descargados a 'DS_PROMETHEUS'...${NC}"
+    find "$MONITORING_DIR/grafana/dashboards" -name '*.json' -exec sed -i \
+        -e 's/"datasource": "Prometheus"/"datasource": "DS_PROMETHEUS"/g' \        -e 's/"datasource": null/"datasource": "DS_PROMETHEUS"/g' \
+        -e 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "DS_PROMETHEUS"/g' \
+        -e 's/"datasource": "${DS_LOCALHOST}"/"datasource": "DS_PROMETHEUS"/g' {} + || echo -e "${ROJO}Error ajustando datasource en dashboards.${NC}" 
+
 
     # Iniciar Node Exporter
     echo -e "${AMARILLO}Iniciando Node Exporter...${NC}"

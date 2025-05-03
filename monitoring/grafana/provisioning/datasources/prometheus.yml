@@ -4,7 +4,7 @@
         {
             "access": "proxy",
             "editable": true,
-            "name": "Prometheus",
+            "name": "DS_PROMETHEUS", # Changed name here
             "orgId": 1,
             "type": "prometheus",
             "url": "http://prometheus:9090",
