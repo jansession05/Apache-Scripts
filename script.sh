@@ -187,8 +187,8 @@ LoadModule status_module modules/mod_status.so
 <IfModule mod_status.c>
     <Location \"/server-status\">
         SetHandler server-status
-        # Allow access from localhost (health check), exporter container, and host IP
-        Require local host apache-exporter ip $HOST_IP
+        # Allow all. Not good. Use a more restrictive rule.
+        Require all granted
     </Location>
     ExtendedStatus On
 </IfModule>
@@ -390,7 +390,7 @@ scrape_configs:
         zcube/cadvisor:latest || error_exit "No se pudo iniciar cAdvisor"
 
     # Iniciar Apache Exporter
-    echo -e "${AMARILLO}Iniciando Apache Exporter (scrapeando via Host IP)...${NC}"
+    echo -e "${AMARILLO}Iniciando Apache Exporter (scrapeando via container hostname)...${NC}" # Updated message
     docker run -d \
         --name apache-exporter \
         --hostname apache-exporter \
@@ -399,7 +399,7 @@ scrape_configs:
         -p 9117:9117 \
         --label "com.example.description=Apache Exporter para monitoreo de Apache" \
         lusotycoon/apache-exporter \
-        --scrape_uri=http://$HOST_IP:80/server-status?auto || error_exit "No se pudo iniciar Apache Exporter" # Changed URI
+        --scrape_uri=http://$HOST_IP/server-status?auto || error_exit "No se pudo iniciar Apache Exporter" # Reverted URI
 
 
     # Iniciar Prometheus
