@@ -382,10 +382,10 @@ scrape_configs:
         --hostname grafana \
         --network apache-net \
         --restart unless-stopped \
+        --user root:root \
         -p 3000:3000 \
-        --user "$(id -u):$(id -g)" \
         -v "$PWD/$MONITORING_DIR/grafana/provisioning:/etc/grafana/provisioning:ro,z" \
-        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:ro,z" \
+        -v "$PWD/$MONITORING_DIR/grafana/dashboards:/var/lib/grafana/dashboards:rw,z" \
         -v "$PWD/$MONITORING_DIR/grafana/data:/var/lib/grafana:z" \
         -e "GF_SECURITY_ADMIN_USER=admin" \
         -e "GF_SECURITY_ADMIN_PASSWORD=admin" \
