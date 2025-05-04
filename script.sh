@@ -207,7 +207,7 @@ IncludeOptional sites-enabled/*.conf
     docker run -d \
         --name apache-server \
         --hostname apache-server \
-        --network apache-net \
+        --network host \
         -p 80:80 \
         -p 443:443 \
         --restart unless-stopped \
@@ -274,9 +274,15 @@ instalar_monitoreo() {
         echo -e "${ROJO}Advertencia: No se pudo obtener la IP del host automáticamente. Node Exporter y Apache Exporter (si usa IP) podrían no ser scrapeados correctamente.${NC}"
         HOST_IP="127.0.0.1" # Fallback
     fi
-    echo -e "${AZUL}IP del host detectada para Node Exporter: $HOST_IP${NC}"
+    echo -e "${AZUL}IP del host detectada: $HOST_IP${NC}"
 
-
+    # Get Apache container IP for direct connection
+    APACHE_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' apache-server)
+    if [ -z "$APACHE_IP" ]; then
+        echo -e "${ROJO}Advertencia: No se pudo obtener la IP del contenedor Apache. Usando la ip del host.${NC}"
+        APACHE_IP="$HOST_IP" # Fallback
+    fi
+    echo -e "${AZUL}IP del contenedor Apache detectada: $APACHE_IP${NC}"
     # Crear configuración de Prometheus (usando nombres de contenedor y IP del host)
     echo "global:
   scrape_interval: 15s
@@ -293,11 +299,11 @@ scrape_configs:
 
   - job_name: 'cadvisor'
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets: ['$HOST_IP:8080']
 
   - job_name: 'apache-exporter' # Usar el exporter dedicado
     static_configs:
-      - targets: ['apache-exporter:9117']
+      - targets: ['$HOST_IP:9117']
 " > "$MONITORING_DIR/prometheus/prometheus.yml"
 
     # Crear configuración de datasource para Grafana (usando nombre de contenedor)
@@ -360,7 +366,7 @@ scrape_configs:
     docker run -d \
         --name node-exporter \
         --hostname node-exporter \
-        --network apache-net \
+        --network host \
         --restart unless-stopped \
         -p 9100:9100 \
         -v "/proc:/host/proc:ro" \
@@ -378,7 +384,7 @@ scrape_configs:
     docker run -d \
         --name cadvisor \
         --hostname cadvisor \
-        --network apache-net \
+        --network host \
         --restart unless-stopped \
         -p 8080:8080 \
         --volume=/:/rootfs:ro \
@@ -390,20 +396,21 @@ scrape_configs:
         zcube/cadvisor:latest || error_exit "No se pudo iniciar cAdvisor"
 
     # Iniciar Apache Exporter
-    echo -e "${AMARILLO}Iniciando Apache Exporter (scrapeando via container hostname)...${NC}" # Updated message
+    echo -e "${AMARILLO}Iniciando Apache Exporter (scrapeando via IP directa)...${NC}"
     docker run -d \
         --name apache-exporter \
         --hostname apache-exporter \
-        --network apache-net \
+        --network host \
         --restart unless-stopped \
         -p 9117:9117 \
         --label "com.example.description=Apache Exporter para monitoreo de Apache" \
         lusotycoon/apache-exporter \
-        --scrape_uri=http://$HOST_IP/server-status?auto || error_exit "No se pudo iniciar Apache Exporter" # Reverted URI
+        --scrape_uri=http://$HOST_IP/server-status?auto || error_exit "No se pudo iniciar Apache Exporter"
 
 
     # Iniciar Prometheus
     echo -e "${AMARILLO}Preparando directorio de datos de Prometheus...${NC}"
+    sudo chmod -R 755 "$PWD/$MONITORING_DIR/prometheus/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar los permisos del directorio de datos de Prometheus. Puede requerir sudo.${NC}"
     sudo chown -R 65534:65534 "$PWD/$MONITORING_DIR/prometheus/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar el propietario del directorio de datos de Prometheus. Puede requerir sudo.${NC}"
     sudo rm -rf "$PWD/$MONITORING_DIR/prometheus/data/"* || echo -e "${ROJO}Advertencia: No se pudo limpiar el directorio de datos de Prometheus. Puede requerir sudo.${NC}"
 
@@ -822,6 +829,4 @@ main() {
             ;;
     esac
 }
-
-# Ejecutar la función principal pasando todos los argumentos
 main "$@"
