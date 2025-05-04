@@ -356,9 +356,10 @@ scrape_configs:
     # Replace common default datasource names/variables with "DS_PROMETHEUS"
     echo -e "${AMARILLO}Ajustando datasource en dashboards descargados a 'DS_PROMETHEUS'...${NC}"
     find "$MONITORING_DIR/grafana/dashboards" -name '*.json' -exec sed -i \
-        -e 's/"datasource": "Prometheus"/"datasource": "DS_PROMETHEUS"/g' \        -e 's/"datasource": null/"datasource": "DS_PROMETHEUS"/g' \
+        -e 's/"datasource": "Prometheus"/"datasource": "DS_PROMETHEUS"/g' \
+        -e 's/"datasource": null/"datasource": "DS_PROMETHEUS"/g' \
         -e 's/"datasource": "${DS_PROMETHEUS}"/"datasource": "DS_PROMETHEUS"/g' \
-        -e 's/"datasource": "${DS_LOCALHOST}"/"datasource": "DS_PROMETHEUS"/g' {} + || echo -e "${ROJO}Error ajustando datasource en dashboards.${NC}" 
+        -e 's/"datasource": "${DS_LOCALHOST}"/"datasource": "DS_PROMETHEUS"/g' {} \; || echo -e "${ROJO}Error ajustando datasource en dashboards.${NC}"
 
 
     # Iniciar Node Exporter
@@ -443,7 +444,7 @@ scrape_configs:
     docker run -d \
         --name grafana \
         --hostname grafana \
-        --network apache-net \
+        --network host \
         --restart unless-stopped \
         --user root:root \
         -p 3000:3000 \
