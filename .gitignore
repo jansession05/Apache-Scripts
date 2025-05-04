@@ -1,2 +1,5 @@
 monitoring/prometheus*
 monitoring/grafana/data*
+apache-config*
+www-data*
+monitoring*

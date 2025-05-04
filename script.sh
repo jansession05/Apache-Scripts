@@ -410,18 +410,20 @@ scrape_configs:
 
     # Iniciar Prometheus
     echo -e "${AMARILLO}Preparando directorio de datos de Prometheus...${NC}"
-    sudo chmod -R 755 "$PWD/$MONITORING_DIR/prometheus/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar los permisos del directorio de datos de Prometheus. Puede requerir sudo.${NC}"
-    sudo chown -R 65534:65534 "$PWD/$MONITORING_DIR/prometheus/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar el propietario del directorio de datos de Prometheus. Puede requerir sudo.${NC}"
-    sudo rm -rf "$PWD/$MONITORING_DIR/prometheus/data/"* || echo -e "${ROJO}Advertencia: No se pudo limpiar el directorio de datos de Prometheus. Puede requerir sudo.${NC}"
+    sudo rm -rf "$MONITORING_DIR/prometheus/data/"*
+    sudo mkdir -p "$MONITORING_DIR/prometheus/data"
+    sudo chmod -R 777 "$MONITORING_DIR/prometheus/data"
+    sudo chown -R 65534:65534 "$MONITORING_DIR/prometheus/data"
 
     echo -e "${AMARILLO}Iniciando Prometheus...${NC}"
     docker run -d \
         --name prometheus \
         --hostname prometheus \
-        --network apache-net \
+        --network host \
         --restart unless-stopped \
+        --privileged \
         -p 9090:9090 \
-        -v "$PWD/$MONITORING_DIR/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:rw"\
+        -v "$PWD/$MONITORING_DIR/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"\
         -v "$PWD/$MONITORING_DIR/prometheus/data:/prometheus:rw" \
         --label "com.example.description=Prometheus para recolección de métricas" \
         prom/prometheus:latest || error_exit "No se pudo iniciar Prometheus"
