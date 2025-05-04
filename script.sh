@@ -35,7 +35,7 @@ comprobar_docker() {
 
 # Función para comprobar si el contenedor Apache está en ejecución
 comprobar_apache_activo() {
-    if ! docker ps --format '{{.Names}}' | grep -q "^apache-server$"; then
+    if ! sudo docker ps --format '{{.Names}}' | grep -q "^apache-server$"; then
         error_exit "El contenedor 'apache-server' no está en ejecución. Inícialo primero con './script.sh iniciar'."
     fi
 }
@@ -157,10 +157,10 @@ inicializar_configuracion_apache() {
 
 # Función para iniciar el contenedor de Apache
 iniciar_apache() {
-    if docker ps -a --format '{{.Names}}' | grep -q "^apache-server$"; then
+    if sudo docker ps -a --format '{{.Names}}' | grep -q "^apache-server$"; then
         echo -e "${AMARILLO}El contenedor 'apache-server' ya existe. Deteniéndolo y eliminándolo...${NC}"
-        docker stop apache-server > /dev/null
-        docker rm apache-server > /dev/null
+        sudo docker stop apache-server > /dev/null
+        sudo docker rm apache-server > /dev/null
     fi
 
     echo -e "${AMARILLO}Iniciando contenedor Apache 'apache-server'...${NC}"
@@ -313,7 +313,7 @@ scrape_configs:
         {
             "access": "proxy",
             "editable": true,
-            "name": "DS_PROMETHEUS", # Changed name here
+            "name": "DS_PROMETHEUS",
             "orgId": 1,
             "type": "prometheus",
             "url": "http://prometheus:9090",
@@ -391,6 +391,7 @@ scrape_configs:
         --volume=/:/rootfs:ro \
         --volume=/var/run:/var/run:rw \
         --volume=/sys:/sys:ro \
+        --volume=/etc/machine-id:/etc/machine-id:ro \
         --privileged \
         --device=/dev/kmsg \
         --label "com.example.description=cAdvisor para monitoreo de contenedores" \
