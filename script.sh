@@ -35,7 +35,7 @@ comprobar_docker() {
 
 # Función para comprobar si el contenedor Apache está en ejecución
 comprobar_apache_activo() {
-    if ! sudo docker ps --format '{{.Names}}' | grep -q "^apache-server$"; then
+    if ! docker ps --format '{{.Names}}' | grep -q "^apache-server$"; then
         error_exit "El contenedor 'apache-server' no está en ejecución. Inícialo primero con './script.sh iniciar'."
     fi
 }
@@ -157,10 +157,10 @@ inicializar_configuracion_apache() {
 
 # Función para iniciar el contenedor de Apache
 iniciar_apache() {
-    if sudo docker ps -a --format '{{.Names}}' | grep -q "^apache-server$"; then
+    if docker ps -a --format '{{.Names}}' | grep -q "^apache-server$"; then
         echo -e "${AMARILLO}El contenedor 'apache-server' ya existe. Deteniéndolo y eliminándolo...${NC}"
-        sudo docker stop apache-server > /dev/null
-        sudo docker rm apache-server > /dev/null
+        docker stop apache-server > /dev/null
+        docker rm apache-server > /dev/null
     fi
 
     echo -e "${AMARILLO}Iniciando contenedor Apache 'apache-server'...${NC}"
@@ -277,7 +277,7 @@ instalar_monitoreo() {
     echo -e "${AZUL}IP del host detectada: $HOST_IP${NC}"
 
     # Get Apache container IP for direct connection
-    APACHE_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' apache-server)
+    APACHE_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' apache-server)
     if [ -z "$APACHE_IP" ]; then
         echo -e "${ROJO}Advertencia: No se pudo obtener la IP del contenedor Apache. Usando la ip del host.${NC}"
         APACHE_IP="$HOST_IP" # Fallback
@@ -412,10 +412,10 @@ scrape_configs:
 
     # Iniciar Prometheus
     echo -e "${AMARILLO}Preparando directorio de datos de Prometheus...${NC}"
-    sudo rm -rf "$MONITORING_DIR/prometheus/data/"*
-    sudo mkdir -p "$MONITORING_DIR/prometheus/data"
-    sudo chmod -R 777 "$MONITORING_DIR/prometheus/data"
-    sudo chown -R 65534:65534 "$MONITORING_DIR/prometheus/data"
+    rm -rf "$MONITORING_DIR/prometheus/data/"*
+    mkdir -p "$MONITORING_DIR/prometheus/data"
+    chmod -R 777 "$MONITORING_DIR/prometheus/data"
+    chown -R 65534:65534 "$MONITORING_DIR/prometheus/data"
 
     echo -e "${AMARILLO}Iniciando Prometheus...${NC}"
     docker run -d \
@@ -435,10 +435,10 @@ scrape_configs:
     # Ensure the directory exists
     mkdir -p "$PWD/$MONITORING_DIR/grafana/data"
     # Set ownership to the current host user
-    sudo chown -R $(id -u):$(id -g) "$PWD/$MONITORING_DIR/grafana/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar el propietario del directorio de datos de Grafana. Puede requerir sudo.${NC}"
+    chown -R $(id -u):$(id -g) "$PWD/$MONITORING_DIR/grafana/data" || echo -e "${ROJO}Advertencia: No se pudo cambiar el propietario del directorio de datos de Grafana. Puede requerir sudo.${NC}"
     # Clean the directory contents
     echo -e "${AMARILLO}Limpiando directorio de datos de Grafana ($PWD/$MONITORING_DIR/grafana/data)...${NC}"
-    sudo rm -rf "$PWD/$MONITORING_DIR/grafana/data/"* || echo -e "${ROJO}Advertencia: No se pudo limpiar el directorio de datos de Grafana. Puede requerir sudo.${NC}"
+    rm -rf "$PWD/$MONITORING_DIR/grafana/data/"* || echo -e "${ROJO}Advertencia: No se pudo limpiar el directorio de datos de Grafana. Puede requerir sudo.${NC}"
 
 
     echo -e "${AMARILLO}Iniciando Grafana...${NC}"
